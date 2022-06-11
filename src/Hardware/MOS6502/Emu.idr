@@ -421,7 +421,7 @@ step {m = m} = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502
     ora v = getReg regA >>= alu (.|. v) >>= setReg regA
 
     dec, inc : Byte -> Op Byte
-    dec = alu (subtract 1)
+    dec = alu (`subtract` 1)
     inc = alu (+ 1)
 
     bit : Byte -> Op ()

@@ -75,6 +75,7 @@ getReg reg = do
     ref <- asks reg
     readIORef ref
 
+public export
 setReg : (HasIO m) => (CPU -> IORef a) -> a -> ReaderT CPU m Unit
 setReg reg v = do
     ref <- asks reg

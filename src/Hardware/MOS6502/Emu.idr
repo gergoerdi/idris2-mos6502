@@ -58,7 +58,7 @@ fetch = do
   readMem addr
 
 toAddr : Byte -> Byte -> Addr
-toAddr lo hi = cast hi `shiftL` 8 .|. cast lo
+toAddr lo hi = (cast hi) `shiftL` 8 .|. cast lo
 
 fetchAddr : (MonadMachine m) => ReaderT CPU m Addr
 fetchAddr = toAddr <$> fetch <*> fetch
@@ -88,8 +88,8 @@ modifyReg reg f = do
 
 push : (MonadMachine m) => Byte -> ReaderT CPU m Unit
 push v = do
-    ptr <- modifyReg sp (+ 1)
-    writeMem (0x100 + cast ptr) v
+    ptr <- modifyReg sp (`subtract` 1)
+    writeMem (0x0100 + cast ptr) v
 
 pushAddr : (MonadMachine m) => Addr -> ReaderT CPU m Unit
 pushAddr addr = push hi *> push lo
@@ -101,7 +101,7 @@ pushAddr addr = push hi *> push lo
 pop : (MonadMachine m) => ReaderT CPU m Byte
 pop = do
   ptr <- modifyReg sp (+ 1)
-  readMem (0x100 + cast (ptr + 1))
+  readMem (0x0100 + cast (ptr + 1))
 
 popAddr : (MonadMachine m) => ReaderT CPU m Addr
 popAddr = toAddr <$> pop <*> pop

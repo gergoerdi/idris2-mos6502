@@ -1,10 +1,10 @@
 module Hardware.MOS6502.Emu
 
-import Control.Monad.Reader
-import Control.Monad.Trans
-import Data.IORef
 import Data.Bits
+import Data.IORef
 import Data.String
+
+%default total
 
 -- TODO: not actually hexadecimal...
 hex : forall a. Show a => Nat -> a -> String
@@ -18,15 +18,21 @@ public export
 Addr : Type
 Addr = Bits16
 
-public export
-interface (HasIO m) => MonadMachine m where
-  readMem : Addr -> m Byte
-  writeMem : Addr -> Byte -> m ()
 
 public export
-MonadMachine m => MonadMachine (ReaderT r m) where
-  readMem = lift . readMem
-  writeMem addr = lift . writeMem addr
+record Machine where
+  constructor MkMachine
+  readMem_  : Addr -> IO Byte
+  writeMem_ : Addr -> Byte -> IO ()
+
+export %inline
+readMem : Machine => Addr -> IO Byte
+readMem = readMem_ %search
+
+export %inline
+writeMem : Machine => Addr -> Byte -> IO ()
+writeMem = writeMem_ %search
+
 
 public export
 record CPU where
@@ -35,7 +41,7 @@ record CPU where
   pc : IORef Addr
 
 public export
-new : (HasIO m) => Addr -> m CPU
+new : Addr -> IO CPU
 new pc0 = pure $ MkCPU
   { regA = !(newIORef 0x00)
   , regX = !(newIORef 0x00)
@@ -45,72 +51,67 @@ new pc0 = pure $ MkCPU
   , pc = !(newIORef pc0)
   }
 
-fetch : (MonadMachine m) => ReaderT CPU m Byte
+fetch : Machine => (cpu : CPU) => IO Byte
 fetch = do
-  pc <- asks pc
-  addr <- readIORef pc
-  writeIORef pc (addr + 1)
+  addr <- readIORef cpu.pc
+  writeIORef cpu.pc (addr + 1)
   readMem addr
 
 toAddr : Byte -> Byte -> Addr
 toAddr lo hi = (cast hi) `shiftL` 8 .|. cast lo
 
-fetchAddr : (MonadMachine m) => ReaderT CPU m Addr
+fetchAddr : Machine => CPU => IO Addr
 fetchAddr = toAddr <$> fetch <*> fetch
 
-readMemAddr : (MonadMachine m) => Addr -> m Addr
+readMemAddr : Machine => Addr -> IO Addr
 readMemAddr addr = toAddr <$> readMem addr <*> readMem (addr + 1)
 
 0 Reg8 : Type
 Reg8 = CPU -> IORef Byte
 
 public export
-getReg : (HasIO m) => (CPU -> IORef a) -> ReaderT CPU m a
-getReg reg = do
-    ref <- asks reg
-    readIORef ref
+getReg : (cpu : CPU) => (CPU -> IORef a) -> IO a
+getReg reg = readIORef (reg cpu)
 
 public export
-setReg : (HasIO m) => (CPU -> IORef a) -> a -> ReaderT CPU m Unit
-setReg reg v = do
-    ref <- asks reg
-    writeIORef ref v
+setReg : (cpu : CPU) => (CPU -> IORef a) -> a -> IO ()
+setReg reg v = writeIORef (reg cpu) v
 
-modifyReg : (HasIO m) => (CPU -> IORef a) -> (a -> a) -> ReaderT CPU m a
+modifyReg : CPU => (CPU -> IORef a) -> (a -> a) -> IO a
 modifyReg reg f = do
   v <- getReg reg
   setReg reg $ f v
   pure v
 
-push : (MonadMachine m) => Byte -> ReaderT CPU m Unit
+push : Machine => CPU => Byte -> IO ()
 push v = do
     ptr <- modifyReg sp (`subtract` 1)
     writeMem (0x0100 + cast ptr) v
 
-pushAddr : (MonadMachine m) => Addr -> ReaderT CPU m Unit
+pushAddr : Machine => CPU => Addr -> IO ()
 pushAddr addr = push hi *> push lo
   where
     hi, lo : Byte
     hi = cast $ addr `shiftR` 8
     lo = cast addr
 
-pop : (MonadMachine m) => ReaderT CPU m Byte
+pop : Machine => CPU => IO Byte
 pop = do
   ptr <- modifyReg sp (+ 1)
   readMem (0x0100 + cast (ptr + 1))
 
-popAddr : (MonadMachine m) => ReaderT CPU m Addr
+popAddr : Machine => CPU => IO Addr
 popAddr = toAddr <$> pop <*> pop
 
 0 Flag : Type
 Flag = Index {a = Byte}
 
-getFlag : (HasIO m) => Flag -> ReaderT CPU m Bool
+getFlag : CPU => Flag -> IO Bool
 getFlag flag = do
   flags <- getReg status
   pure $ flags `testBit` flag
 
-setFlag : (HasIO m) => Flag -> Bool -> ReaderT CPU m ()
+setFlag : CPU => Flag -> Bool -> IO ()
 setFlag flag b = ignore $ modifyReg status $ flip (if b then setBit else clearBit) flag
 
 carry, zero, interruptEnable, decimal, overflow, negative: Flag
@@ -122,14 +123,14 @@ overflow = 6
 negative = 7
 
 public export
-rts : (MonadMachine m) => ReaderT CPU m ()
+rts : Machine => CPU => IO ()
 rts = do
     addr <- popAddr
     setReg pc (addr + 1)
 
 public export
-step : (MonadMachine m) => ReaderT CPU m ()
-step {m = m} = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.html
+step : Machine => CPU => IO ()
+step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.html
   0x69 => imm adc
   0x65 => byVal zp adc
   0x75 => byVal zpX adc
@@ -317,10 +318,10 @@ step {m = m} = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502
      idris_crash $ unwords [hex 4 addr, hex 2 op]
   where
     0 Op : Type -> Type
-    Op = ReaderT CPU m
+    Op a = IO a
 
     0 Addressing : Type
-    Addressing = ReaderT CPU m Addr
+    Addressing = IO Addr
 
     0 Operand : Type
     Operand = {0 a : Type} -> (Byte -> Op a) -> Op a
@@ -341,7 +342,7 @@ step {m = m} = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502
     implied : Reg8 -> (Byte -> Op Byte) -> Op ()
     implied reg op = getReg reg >>= op >>= setReg reg
 
-    zp', abs' : ReaderT CPU m Byte -> Addressing
+    zp', abs' : IO Byte -> Addressing
     zp' offset = do
       z <- fetch
       offset <- offset

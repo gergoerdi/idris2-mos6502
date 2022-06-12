@@ -19,7 +19,6 @@ public export
 Addr : Type
 Addr = Bits16
 
-
 public export
 record Machine where
   constructor MkMachine
@@ -34,7 +33,6 @@ export %inline
 writeMem : Machine => Addr -> Byte -> IO ()
 writeMem = writeMem_ %search
 
-
 public export
 record CPU where
   constructor MkCPU
@@ -44,12 +42,12 @@ record CPU where
 public export
 new : Addr -> IO CPU
 new pc0 = pure $ MkCPU
-  { regA = !(newIORef 0x00)
-  , regX = !(newIORef 0x00)
-  , regY = !(newIORef 0x00)
+  { regA   = !(newIORef 0x00)
+  , regX   = !(newIORef 0x00)
+  , regY   = !(newIORef 0x00)
   , status = !(newIORef 0x00)
-  , sp = !(newIORef 0xff)
-  , pc = !(newIORef pc0)
+  , sp     = !(newIORef 0xff)
+  , pc     = !(newIORef pc0)
   }
 
 fetch : Machine => (cpu : CPU) => IO Byte

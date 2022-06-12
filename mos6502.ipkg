@@ -1,4 +1,5 @@
 package mos6502
+version = 0.0.1
 
 sourcedir = "src"
 

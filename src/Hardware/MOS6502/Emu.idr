@@ -57,6 +57,7 @@ fetch = do
   writeIORef cpu.pc (addr + 1)
   readMem addr
 
+public export
 toAddr : Byte -> Byte -> Addr
 toAddr lo hi = (cast hi) `shiftL` 8 .|. cast lo
 

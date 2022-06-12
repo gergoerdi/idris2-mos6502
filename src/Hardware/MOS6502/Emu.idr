@@ -8,12 +8,7 @@ import Data.String
 
 -- TODO: not actually hexadecimal...
 hex : forall a. Show a => Nat -> a -> String
-hex n = pad n . show
-  where
-    pad : Nat -> String -> String
-    pad n s =
-      let k = max 0 $ n `minus` cast (strLength s)
-      in replicate k '0' <+> s
+hex n = padLeft n '0' . show
 
 public export
 Byte : Type

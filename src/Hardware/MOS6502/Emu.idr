@@ -1,6 +1,7 @@
 module Hardware.MOS6502.Emu
 
-import Data.Bits
+import Data.Bits.Fast
+import Control.Monad.IO.Fast
 import Data.IORef
 import Data.String
 
@@ -90,7 +91,7 @@ push v = do
     writeMem (0x0100 + cast ptr) v
 
 pushAddr : Machine => CPU => Addr -> IO ()
-pushAddr addr = push hi *> push lo
+pushAddr addr = push hi >> push lo
   where
     hi, lo : Byte
     hi = cast $ addr `shiftR` 8
@@ -105,7 +106,7 @@ popAddr : Machine => CPU => IO Addr
 popAddr = toAddr <$> pop <*> pop
 
 0 Flag : Type
-Flag = Index {a = Byte}
+Flag = Byte
 
 getFlag : CPU => Flag -> IO Bool
 getFlag flag = do
@@ -115,6 +116,9 @@ getFlag flag = do
 setFlag : CPU => Flag -> Bool -> IO ()
 setFlag flag b = ignore $ modifyReg status $ flip (if b then setBit else clearBit) flag
 
+-- Unfortunately, Idris does not inline these automatically,
+-- so we add an `%inline` pragma here.
+%inline
 carry, zero, interruptEnable, decimal, overflow, negative: Flag
 carry = 0
 zero = 1

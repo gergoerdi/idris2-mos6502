@@ -7,9 +7,16 @@ import Data.String
 
 %default total
 
--- TODO: not actually hexadecimal...
-hex : forall a. Show a => Nat -> a -> String
-hex n = padLeft n '0' . show
+public export
+hex : (Integral a, Cast a Int) => Nat -> a -> String
+hex d n = pack $ reverse $ foldl toHexDigit [] (slice d n [])
+  where
+    toHexDigit : List Char -> Int -> List Char
+    toHexDigit acc i = chr (if i < 10 then i + ord '0' else (i-10) + ord 'a')::acc
+
+    slice : Nat -> a -> List Int -> List Int
+    slice Z     _ acc = acc
+    slice (S d) n acc = slice d (n `div` 16) (cast (n `mod` 16)::acc)
 
 public export
 Byte : Type

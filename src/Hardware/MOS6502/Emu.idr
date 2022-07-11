@@ -384,32 +384,37 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
     alu : (Byte -> Byte) -> Byte -> Op Byte
     alu f v = updateFlags $ f v
 
-    signed : (Byte -> Byte -> Bool -> Bits16) -> Byte -> Byte -> Op Byte
-    signed f v1 v2 = do
-      c0 <- getFlag carry
-      let result = f v1 v2 c0
+    signed : Byte -> Byte -> (Byte -> Byte -> Bool -> (Bits16, Bool)) -> Op Byte
+    signed v1 v2 f = do
+      c <- getFlag carry
+      let (result, c') = f v1 v2 c
 
       when ((result `testBit` 7) /= (v1 .&. v2 `testBit` 7)) $ setFlag overflow True
 
-      setFlag carry $ result >= 0x100
+      setFlag carry c'
       updateFlags $ cast result
 
     sub : Byte -> Byte -> Op Byte
-    sub = signed $ \v1, v2, c0 =>
-      -- TODO: BCD
-      cast v1 - cast v2 - if c0 then 0 else 1
+    sub v1 v2 = signed v1 v2 $ \v1, v2, c0 =>
+        -- TODO: BCD
+        let result = cast v1 - cast v2 - if c0 then 0 else 1
+            borrow = result > 0xff
+        in (result, not borrow)
 
     cmp : Reg8 -> Byte -> Op ()
-    cmp reg v = do
-      setFlag carry True
-      a <- getReg reg
-      ignore $ sub a v
+    cmp reg v2 = do
+      setFlag carry True -- `cmp` doesn't use previous borrow
+      v1 <- getReg reg
+      ignore $ sub v1 v2
 
     adc, sbc, and, eor, ora : Byte -> Op ()
     adc v = do
       a <- getReg regA
       -- TODO: BCD
-      a' <- signed (\v1, v2, c0 => cast v1 + cast v2 + if c0 then 1 else 0) a v
+      a' <- signed v a $ \v1, v2, c0 =>
+        let result = cast v1 + cast v2 + if c0 then 1 else 0
+            carry = result > 0xff
+        in (result, carry)
       setReg regA a'
 
     sbc v = do

@@ -312,8 +312,8 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
   0xba => transfer sp regX
   0x48 => push =<< getReg regA
   0x68 => setReg regA =<< pop
-  0x08 => push =<< (`setBit` 4) <$> getReg status
-  0x28 => setReg status =<< pop
+  0x08 => push =<< (`setBit` 5) . (`setBit` 4) <$> getReg status
+  0x28 => setReg status . (`setBit` 5) . (`setBit` 4) =<< pop
 
   op => assert_total $ do
      pc <- getReg pc

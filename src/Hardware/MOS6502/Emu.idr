@@ -266,9 +266,9 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
 
   0xa0 => imm $ load regY
   0xa4 => byVal zp $ load regY
-  0xb4 => byVal zpY $ load regY
+  0xb4 => byVal zpX $ load regY
   0xac => byVal abs $ load regY
-  0xbc => byVal absY $ load regY
+  0xbc => byVal absX $ load regY
 
   0x4a => implied regA lsr
   0x46 => inplace zp lsr
@@ -329,7 +329,7 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
   0x8e => byRef abs $ store regX
 
   0x84 => byRef zp $ store regY
-  0x94 => byRef zpY $ store regY
+  0x94 => byRef zpX $ store regY
   0x8c => byRef abs $ store regY
 
   0x9a => getReg regX >>= setReg sp -- Doesn't update NZ flags

@@ -335,7 +335,7 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
   0x9a => getReg regX >>= setReg sp -- Doesn't update NZ flags
   0xba => transfer sp regX
   0x48 => getReg regA >>= push
-  0x68 => pop >>= updateFlags >>= setReg regA
+  0x68 => pop >>= updateNZ >>= setReg regA
   0x08 => getReg status >>= push . (`setBit` 5) . (`setBit` 4)
   0x28 => pop >>= setReg status . (`setBit` 5) . (`setBit` 4)
 
@@ -399,52 +399,49 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
       base <- readMemAddr z
       pure $ base + cast offset
 
-    updateFlags : Byte -> Op Byte
-    updateFlags result = do
-      setFlag zero $ result .&. 0xff == 0
+    updateNZ : Byte -> Op Byte
+    updateNZ result = do
       setFlag negative $ result `testBit` 7
+      setFlag zero $ result .&. 0xff == 0
       pure result
 
     alu : (Byte -> Byte) -> Byte -> Op Byte
-    alu f v = updateFlags $ f v
+    alu f v = updateNZ $ f v
 
-    signed : Byte -> Byte -> (Byte -> Byte -> Bool -> (Bits16, Bool)) -> Op Byte
-    signed v1 v2 f = do
-      c <- getFlag carry
-      let (result, c') = f v1 v2 c
-
-      when ((result `testBit` 7) /= (v1 .&. v2 `testBit` 7)) $ setFlag overflow True
-
-      setFlag carry c'
-      updateFlags $ cast result
-
-    sub : Byte -> Byte -> Op Byte
-    sub v1 v2 = signed v1 v2 $ \v1, v2, c0 =>
+    sub, add : Bits16 -> Bits16 -> Op Byte
+    sub v1 v2 = do
+        c <- getFlag carry
         -- TODO: BCD
-        let result = cast v1 - cast v2 - if c0 then 0 else 1
-            borrow = result > 0xff
-        in (result, not borrow)
+        let result = v1 - v2 - if c then 0 else 1
+        setFlag carry $ result <= 0xff
+        updateNZ $ cast result
+    add v1 v2 = do
+        c <- getFlag carry
+        -- TODO: BCD
+        let result = v1 + v2 + if c then 1 else 0
+        setFlag carry $ result > 0xff
+        updateNZ $ cast result
 
     cmp : Reg8 -> Byte -> Op ()
     cmp reg v2 = do
       setFlag carry True -- `cmp` doesn't use previous borrow
       v1 <- getReg reg
-      ignore $ sub v1 v2
+      ignore $ sub (cast v1) (cast v2)
+
+    updateV : Byte -> Byte -> Byte -> Op Byte
+    updateV v1 v2 result = do
+      let sign1 = v1 `testBit` 7
+          sign2 = v2 `testBit` 7
+          sign = result `testBit` 7
+      when (sign1 == sign2 && sign /= sign1) $ setFlag overflow True
+      pure result
+
+    signed : (Bits16 -> Bits16 -> Op Byte) -> Byte -> Byte -> Op Byte
+    signed f v1 v2 = f (cast v1) (cast v2) >>= updateV v1 v2
 
     adc, sbc, and, eor, ora : Byte -> Op ()
-    adc v = do
-      a <- getReg regA
-      -- TODO: BCD
-      a' <- signed v a $ \v1, v2, c0 =>
-        let result = cast v1 + cast v2 + if c0 then 1 else 0
-            carry = result > 0xff
-        in (result, carry)
-      setReg regA a'
-
-    sbc v = do
-      a <- getReg regA
-      setReg regA =<< sub a v
-
+    adc v = getReg regA >>= signed add v >>= setReg regA
+    sbc v = getReg regA >>= signed sub v >>= setReg regA
     and v = getReg regA >>= alu (.&. v) >>= setReg regA
     eor v = getReg regA >>= alu (`xor` v) >>= setReg regA
     ora v = getReg regA >>= alu (.|. v) >>= setReg regA
@@ -478,14 +475,14 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
         setReg pc addr
 
     transfer : Reg8 -> Reg8 -> Op ()
-    transfer from to = getReg from >>= updateFlags >>= setReg to
+    transfer from to = getReg from >>= updateNZ >>= setReg to
 
     shiftRot : ((Bool, Byte) -> (Bool, Byte)) -> Byte -> Op Byte
     shiftRot f v = do
       c <- getFlag carry
       let (c', v') = f (c, v)
       setFlag carry c'
-      updateFlags v'
+      updateNZ v'
 
     asl, lsr, rol, ror : Byte -> Op Byte
     asl = shiftRot $ \(c, v) => (v `testBit` 7, v `shiftL` 1)

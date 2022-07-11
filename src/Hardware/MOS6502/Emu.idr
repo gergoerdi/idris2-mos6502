@@ -90,6 +90,17 @@ modifyReg reg f = do
   setReg reg $ f v
   pure v
 
+public export
+dump : (cpu : CPU) => IO ()
+dump = do
+    pc <- hex 4 <$> getReg pc
+    regA <- hex 2 <$> getReg regA
+    regX <- hex 2 <$> getReg regX
+    regY <- hex 2 <$> getReg regY
+    sp <- hex 2 <$> getReg sp
+    status <- hex 2 <$> getReg status
+    putStrLn $ unwords [pc, "A:", regA, "X:", regX, "Y:", regY, "SP:", sp, "P:", status]
+
 push : Machine => CPU => Byte -> IO ()
 push v = do
     ptr <- modifyReg sp (`subtract` 1)

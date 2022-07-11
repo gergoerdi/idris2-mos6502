@@ -433,7 +433,7 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
       let sign1 = v1 `testBit` 7
           sign2 = v2 `testBit` 7
           sign = result `testBit` 7
-      when (sign1 == sign2 && sign /= sign1) $ setFlag overflow True
+      setFlag overflow $ sign1 == sign2 && sign /= sign1
       pure result
 
     signed : (Bits16 -> Bits16 -> Op Byte) -> Byte -> Byte -> Op Byte

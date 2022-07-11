@@ -132,6 +132,12 @@ rts = do
     setReg pc (addr + 1)
 
 public export
+rti : Machine => CPU => IO ()
+rti = do
+    pop >>= setReg status . (`setBit` 5) . (`setBit` 4)
+    popAddr >>= setReg pc
+
+public export
 step : Machine => CPU => IO ()
 step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.html
   0x69 => imm adc
@@ -280,7 +286,7 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
   0x6e => inplace abs ror
   0x7e => inplace absX ror
 
-  -- 0x40 => rti -- TODO
+  0x40 => rti
   0x60 => rts
 
   0xe9 => imm sbc

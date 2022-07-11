@@ -314,7 +314,7 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
   0x94 => byRef zpY $ store regY
   0x8c => byRef abs $ store regY
 
-  0x9a => transfer regX sp
+  0x9a => getReg regX >>= setReg sp -- Doesn't update NZ flags
   0xba => transfer sp regX
   0x48 => getReg regA >>= push
   0x68 => pop >>= updateFlags >>= setReg regA

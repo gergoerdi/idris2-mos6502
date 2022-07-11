@@ -14,3 +14,6 @@ depends
 modules = Data.Bits.Fast
 	, Control.Monad.IO.Fast
 	, Hardware.MOS6502.Emu
+
+executable = "mos6502-test"
+main = Main

@@ -25,6 +25,10 @@ namespace Bits8
   xor = prim__xor_Bits8
 
   public export %inline
+  complement : Bits8 -> Bits8
+  complement = xor 0xff
+
+  public export %inline
   shiftL : Bits8 -> Bits8 -> Bits8
   shiftL = prim__shl_Bits8
 
@@ -60,6 +64,10 @@ namespace Bits16
   public export %inline
   xor : Bits16 -> Bits16 -> Bits16
   xor = prim__xor_Bits16
+
+  public export %inline
+  complement : Bits16 -> Bits16
+  complement = xor 0xffff
 
   public export %inline
   shiftL : Bits16 -> Bits16 -> Bits16

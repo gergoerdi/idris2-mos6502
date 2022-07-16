@@ -408,17 +408,11 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
     alu : (Byte -> Byte) -> Byte -> Op Byte
     alu f v = updateNZ $ f v
 
-    sub, add : Bits16 -> Bits16 -> Op Byte
-    sub v1 v2 = do
-        c <- getFlag carry
-        -- TODO: BCD
-        let result = v1 - v2 - if c then 0 else 1
-        setFlag carry $ result <= 0xff
-        updateNZ $ cast result
+    add : Byte -> Byte -> Op Byte
     add v1 v2 = do
         c <- getFlag carry
         -- TODO: BCD
-        let result = v1 + v2 + if c then 1 else 0
+        let result = the Bits16 $ cast v1 + cast v2 + if c then 1 else 0
         setFlag carry $ result > 0xff
         updateNZ $ cast result
 
@@ -426,22 +420,23 @@ step = fetch >>= \op => case op of -- http://www.6502.org/tutorials/6502opcodes.
     cmp reg v2 = do
       setFlag carry True -- `cmp` doesn't use previous borrow
       v1 <- getReg reg
-      ignore $ sub (cast v1) (cast v2)
+      ignore $ add v1 (complement v2)
+      -- putStrLn . unwords $ ["cmp", hex 2 v1, hex 2 v2]
 
     updateV : Byte -> Byte -> Byte -> Op Byte
     updateV v1 v2 result = do
       let sign1 = v1 `testBit` 7
           sign2 = v2 `testBit` 7
           sign = result `testBit` 7
-      setFlag overflow $ sign1 == sign2 && sign /= sign1
+      setFlag overflow $ sign /= sign1 && sign /= sign2
       pure result
 
-    signed : (Bits16 -> Bits16 -> Op Byte) -> Byte -> Byte -> Op Byte
-    signed f v1 v2 = f (cast v1) (cast v2) >>= updateV v1 v2
+    addV :  Byte -> Byte -> Op Byte
+    addV v1 v2 = add v1 v2 >>= updateV v1 v2
 
     adc, sbc, and, eor, ora : Byte -> Op ()
-    adc v = getReg regA >>= signed add v >>= setReg regA
-    sbc v = getReg regA >>= signed sub v >>= setReg regA
+    adc v = getReg regA >>= flip addV v >>= setReg regA
+    sbc v = getReg regA >>= flip addV (complement v) >>= setReg regA
     and v = getReg regA >>= alu (.&. v) >>= setReg regA
     eor v = getReg regA >>= alu (`xor` v) >>= setReg regA
     ora v = getReg regA >>= alu (.|. v) >>= setReg regA

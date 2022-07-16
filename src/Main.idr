@@ -3,6 +3,7 @@ module Main
 import Hardware.MOS6502.Emu
 import System.File.Buffer
 import Data.Buffer
+import Data.String
 
 bufMachine : Buffer -> Machine
 bufMachine buf = MkMachine
@@ -22,6 +23,7 @@ untilIO acc0 step = fromPrim $ go acc0
 single : Machine => CPU => IO (Maybe Addr)
 single = do
   before <- getReg pc
+  putStrLn =<< dump
   step
   after <- getReg pc
   -- PC hasn't changed (`jmp *`) ==> we're at an error trap
@@ -42,4 +44,4 @@ main = do
   Right buf <- createBufferFromFile "6502_functional_test.bin"
     | Left err => printLn err
   (cnt, pc) <- run buf
-  printLn (cnt, pc)
+  putStrLn . unwords $ [hex 4 pc, show cnt]
